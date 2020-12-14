@@ -25,20 +25,34 @@ namespace NuGetGood
 
             var id = package.ToLowerInvariant();
             var url = $"https://api.nuget.org/v3-flatcontainer/{id}/index.json";
-            var list = await httpClient.GetFromJsonAsync<VersionList>(url);
-            var current = string.IsNullOrWhiteSpace(version) || version == "*" ? "unspecified" : version;
-            var latest = list.Versions.Last();
-            if (current != latest)
+
+            using (var response = await httpClient.GetAsync(url, cancellationToken))
             {
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.Write(current);
-                Console.Write(" to ");
-                Console.WriteLine(latest);
-            }
-            else
-            {
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine(current);
+                if (response.IsSuccessStatusCode)
+                {
+                    var list = await response.Content.ReadFromJsonAsync<VersionList>(cancellationToken: cancellationToken);
+                    var current = string.IsNullOrWhiteSpace(version) || version == "*" ? "unspecified" : version;
+                    var hasDash = current.Contains('-');
+                    var latest = list.Versions.Last(v => hasDash || !v.Contains('-'));
+                    if (current != latest)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Yellow;
+                        Console.Write(current);
+                        Console.Write(" to ");
+                        Console.WriteLine(latest);
+                    }
+                    else
+                    {
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine(current);
+                    }
+                }
+                else
+                {
+                    var statusCode = (int)response.StatusCode;
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"error ({statusCode})");
+                }
             }
         }
 
